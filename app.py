@@ -109,12 +109,12 @@ HTML_JOGO = """<!DOCTYPE html>
     <script>
         const canvas = document.getElementById("gameCanvas"), ctx = canvas.getContext("2d");
         const BLOCO = 20, LARGURA = canvas.width, ALTURA = canvas.height;
-        let estado = "LOGIN", pontos = 0, x, y, vx = 0, vy = 0, corpo = [], tam = 1, cx, cy;
-        let nomeJogador = "";
-        const elPontos = document.getElementById("txtPontos"), elJogador = document.getElementById("txtJogador"), elListaRanking = document.getElementById("lista-ranking");
+        let estado = "LOGIN", pontos = 0, vel = 10, x, y, vx = 0, vy = 0, corpo = [], tam = 1, cx, cy, direcaoAtual = "PARADO", tUltimoFrame = 0, contFrames = 0, tUltimoFPS = 0, cPendentes = [], nomeJogador = "";
+        const elPontos = document.getElementById("txtPontos"), elFPS = document.getElementById("txtFPS"), elJogador = document.getElementById("txtJogador"), elListaRanking = document.getElementById("lista-ranking");
         
         document.addEventListener('gesturestart', e => e.preventDefault());
         document.addEventListener('touchstart', e => { if (estado !== "LOGIN" && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+        let uToque = 0; document.addEventListener('touchend', e => { const t = performance.now(); if (estado !== "LOGIN" && t - uToque <= 300) e.preventDefault(); uToque = t; }, { passive: false });
 
         // Função para carregar os Top 5 Recordes do Servidor
         async function carregarRankingGlobal() {
@@ -141,69 +141,33 @@ HTML_JOGO = """<!DOCTYPE html>
                 });
                 carregarRankingGlobal();
             } catch (err) {
-                console.error("Erro ao salvar recorde", err);
+                console.error("Erro ao salvar recorde:", err);
             }
         }
 
-        function iniciarJogo() {
-            x = LARGURA / 2;
-            y = ALTURA / 2;
-            vx = BLOCO;
-            vy = 0;
-            corpo = [];
-            tam = 3;
-            pontos = 0;
-            elPontos.innerText = "Pontos: " + pontos;
-            gerarComida();
-        }
-
-        function gerarComida() {
-            cx = Math.floor(Math.random() * (LARGURA / BLOCO)) * BLOCO;
-            cy = Math.floor(Math.random() * (ALTURA / BLOCO)) * BLOCO;
-        }
-
-        function atualizar() {
-            if (estado !== "JOGANDO") return;
-
-            x += vx;
-            y += vy;
-
-            // Colisão com as bordas
-            if (x < 0 || x >= LARGURA || y < 0 || y >= ALTURA) {
-                morrer();
-                return;
+        // --- Adicione aqui o restante da mecânica do jogo (loop principal, controles, colisão etc.) se necessário ---
+        // Exemplo mínimo para inicializar o fluxo do botão jogar:
+        document.getElementById("btn-jogar").onclick = () => {
+            const nomeIn = document.getElementById("input-nome").value.trim();
+            if(nomeIn) {
+                nomeJogador = nomeIn;
+                elJogador.innerText = "Jogador: " + nomeJogador;
+                document.getElementById("tela-login").style.display = "none";
+                estado = "JOGANDO";
+                carregarRankingGlobal();
             }
+        };
 
-            // Colisão com o próprio corpo
-            for (let i = 0; i < corpo.length; i++) {
-                if (corpo[i].x === x && corpo[i].y === y) {
-                    morrer();
-                    return;
-                }
-            }
+        // Carrega o ranking ao abrir a página
+        carregarRankingGlobal();
+    </script>
+</body>
+</html>"""
 
-            // Movimento da cobra
-            corpo.unshift({ x: x, y: y });
-            if (corpo.length > tam) {
-                corpo.pop();
-            }
+@app.route('/')
+def index():
+    return render_template_string(HTML_JOGO)
 
-            // Comeu a comida
-            if (x === cx && y === cy) {
-                tam++;
-                pontos += 10;
-                elPontos.innerText = "Pontos: " + pontos;
-                gerarComida();
-            }
-        }
-
-        function desenhar() {
-            ctx.clearRect(0, 0, LARGURA, ALTURA);
-
-            // Desenhar comida
-            ctx.fillStyle = "#e74c3c";
-            ctx.fillRect(cx, cy, BLOCO - 2, BLOCO - 2);
-
-            // Desenhar cobra
-            ctx.fillStyle = "#2ecc71";
-            corpo.forEach((parte, index) => {
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
