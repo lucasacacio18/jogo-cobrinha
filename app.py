@@ -119,7 +119,6 @@ H_SCRIPT = """    <script>
                     elListaRanking.innerHTML += `<div class="linha-rank"><span>${i+1}°. ${r.nome}</span><strong>${r.pontos} pts</strong></div>`;
                 });
             } catch (err) {
-                // Segurança: Se der erro na requisição do servidor, cria a tabela localmente e não trava
                 elListaRanking.innerHTML = `
                     <div class="linha-rank"><span>1°. Lucas</span><strong>150 pts</strong></div>
                     <div class="linha-rank"><span>2°. SnakeMaster</span><strong>100 pts</strong></div>
@@ -191,3 +190,4 @@ H_SCRIPT = """    <script>
 
         function morreu() { alert("Game Over! Pontos: " + pontos); enviarPontuacaoServidor(); resetarJogo(); }
 
+        function mudarDirecao(novaDir) {
