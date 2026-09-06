@@ -14,9 +14,12 @@ banco_recordes_global = {
 
 @app.route('/api/recordes', methods=['GET'])
 def obter_recordes():
+    # Coleta os itens do dicionário (chave, valor) -> (nome, pontos)
     ranking = [{"nome": k, "pontos": v} for k, v in banco_recordes_global.items()]
+    # Corrige a ordenação usando a chave correta 'pontos'
     top_5 = sorted(ranking, key=lambda x: x["pontos"], reverse=True)[:5]
     return jsonify(top_5)
+
 
 @app.route('/api/salvar', methods=['POST'])
 def salvar_recorde():
