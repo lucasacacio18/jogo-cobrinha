@@ -174,7 +174,6 @@ H_SCRIPT = """    <script>
             for (let i = 0; i < corpo.length - 1; i++) {
                 if (corpo[i].x === x && corpo[i].y === y) { morreu(); return; }
             }
-
             corpo.push({ x: x, y: y });
             while (corpo.length > tam) { corpo.shift(); }
 
