@@ -3,8 +3,7 @@ from flask import Flask, render_template_string, jsonify, request
 
 app = Flask(__name__)
 
-# Banco de dados simulado em memória no servidor (Persiste globalmente enquanto o app estiver rodando)
-# Estrutura: {"nome": pontuacao_maxima}
+# Banco de dados simulado em memória no servidor (Persiste enquanto o app estiver rodando)
 banco_recordes_global = {
     "Lucas": 150,
     "SnakeMaster": 100,
@@ -28,7 +27,6 @@ def salvar_recorde():
     if not nome:
         return jsonify({"status": "erro", "mensagem": "Nome inválido"}), 400
         
-    # Só grava se for um nome novo ou se a pontuação atual for maior que o recorde antigo dele
     if nome not in banco_recordes_global or pontos > banco_recordes_global[nome]:
         banco_recordes_global[nome] = pontos
         
@@ -46,16 +44,14 @@ HTML_JOGO = """<!DOCTYPE html>
         * { box-sizing: border-box; touch-action: none; -webkit-tap-highlight-color: transparent; }
         body { margin:0; background:#1e1e1e; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; color:white; font-family:Arial, sans-serif; user-select:none; padding:10px; }
         #container-principal { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 600px; }
-        #placar-externo { display: flex; justify-content: space-between; width: 100%; background: #2c3e50; border: 4px solid #3498db; border-bottom: none; border-top-left-radius: 10px; border-top-right-radius: 10px; padding: 10px 20px; font-size: 16px; font-weight: bold; width: 100%; }
+        #placar-externo { display: flex; justify-content: space-between; width: 100%; background: #2c3e50; border: 4px solid #3498db; border-bottom: none; border-top-left-radius: 10px; border-top-right-radius: 10px; padding: 10px 20px; font-size: 16px; font-weight: bold; }
         #canvas-container { border: 4px solid #3498db; background:#1e1e1e; width: 100%; position: relative; }
         canvas { display:block; width: 100%; height:auto; background: #1e1e1e; }
         
-        /* Painel do Ranking Global */
         #painel-ranking { width: 100%; background: #2c3e50; border: 4px solid #3498db; border-top: none; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; padding: 10px 20px; font-size: 14px; }
         #painel-ranking h3 { margin: 0 0 8px 0; text-align: center; color: #f1c40f; font-size: 16px; }
         .linha-rank { display: flex; justify-content: space-between; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid #34495e; }
         
-        /* Tela de Bloqueio de Login Inicial */
         #tela-login { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; padding: 20px; text-align: center; }
         #tela-login h2 { color: #3498db; margin-bottom: 15px; }
         #input-nome { padding: 12px; font-size: 16px; border: 2px solid #3498db; border-radius: 6px; width: 80%; max-width: 280px; margin-bottom: 15px; background: #fff; color: #000; text-align: center; font-weight: bold; }
@@ -80,7 +76,6 @@ HTML_JOGO = """<!DOCTYPE html>
         </div>
         
         <div id="canvas-container">
-            <!-- Tela de Login Obrigatória -->
             <div id="tela-login">
                 <h2>COBRINHA GLOBAL</h2>
                 <input type="text" id="input-nome" placeholder="DIGITE SEU NOME" maxlength="12">
@@ -89,7 +84,6 @@ HTML_JOGO = """<!DOCTYPE html>
             <canvas id="gameCanvas" width="600" height="400"></canvas>
         </div>
         
-        <!-- Novo Label: Top 5 Líderes Mundiais -->
         <div id="painel-ranking">
             <h3>🏆 TOP 5 RECORDES GLOBAIS</h3>
             <div id="lista-ranking">Carregando recordes mundiais...</div>
@@ -109,14 +103,23 @@ HTML_JOGO = """<!DOCTYPE html>
     <script>
         const canvas = document.getElementById("gameCanvas"), ctx = canvas.getContext("2d");
         const BLOCO = 20, LARGURA = canvas.width, ALTURA = canvas.height;
-        let estado = "LOGIN", pontos = 0, vel = 10, x, y, vx = 0, vy = 0, corpo = [], tam = 1, cx, cy, direcaoAtual = "PARADO", tUltimoFrame = 0, contFrames = 0, tUltimoFPS = 0, cPendentes = [], nomeJogador = "";
-        const elPontos = document.getElementById("txtPontos"), elFPS = document.getElementById("txtFPS"), elJogador = document.getElementById("txtJogador"), elListaRanking = document.getElementById("lista-ranking");
+        
+        let estado = "LOGIN", pontos = 0, vel = 10;
+        let x = 100, y = 100, vx = BLOCO, vy = 0;
+        let corpo = [{x: 100, y: 100}], tam = 3;
+        let cx = 200, cy = 200;
+        let direcaoAtual = "DIREITA", nomeJogador = "";
+        let emPausa = false;
+
+        // Controle de FPS e loop estável
+        let tUltimoFrame = 0, contFrames = 0, tUltimoFPS = 0;
+
+        const elPontos = document.getElementById("txtPontos"), elFPS = document.getElementById("txtFPS");
+        const elJogador = document.getElementById("txtJogador"), elListaRanking = document.getElementById("lista-ranking");
         
         document.addEventListener('gesturestart', e => e.preventDefault());
         document.addEventListener('touchstart', e => { if (estado !== "LOGIN" && e.touches.length > 1) e.preventDefault(); }, { passive: false });
-        let uToque = 0; document.addEventListener('touchend', e => { const t = performance.now(); if (estado !== "LOGIN" && t - uToque <= 300) e.preventDefault(); uToque = t; }, { passive: false });
 
-        // Função para carregar os Top 5 Recordes do Servidor
         async function carregarRankingGlobal() {
             try {
                 const res = await fetch('/api/recordes');
@@ -130,9 +133,8 @@ HTML_JOGO = """<!DOCTYPE html>
             }
         }
 
-        // Envia a pontuação para o servidor quando morre
         async function enviarPontuacaoServidor() {
-            if(!nomeJogador) return;
+            if(!nomeJogador || pontos === 0) return;
             try {
                 await fetch('/api/salvar', {
                     method: 'POST',
@@ -145,29 +147,59 @@ HTML_JOGO = """<!DOCTYPE html>
             }
         }
 
-        // --- Adicione aqui o restante da mecânica do jogo (loop principal, controles, colisão etc.) se necessário ---
-        // Exemplo mínimo para inicializar o fluxo do botão jogar:
-        document.getElementById("btn-jogar").onclick = () => {
-            const nomeIn = document.getElementById("input-nome").value.trim();
-            if(nomeIn) {
-                nomeJogador = nomeIn;
-                elJogador.innerText = "Jogador: " + nomeJogador;
-                document.getElementById("tela-login").style.display = "none";
-                estado = "JOGANDO";
-                carregarRankingGlobal();
+        function novaMaca() {
+            cx = Math.floor(Math.random() * (LARGURA / BLOCO)) * BLOCO;
+            cy = Math.floor(Math.random() * (ALTURA / BLOCO)) * BLOCO;
+        }
+
+        function resetarJogo() {
+            pontos = 0;
+            elPontos.innerText = "Pontos: " + pontos;
+            x = 100; y = 100;
+            vx = BLOCO; vy = 0;
+            direcaoAtual = "DIREITA";
+            corpo = [{x: 100, y: 100}];
+            tam = 3;
+            emPausa = false;
+            document.getElementById("btnPausa").innerText = "Pausar";
+            novaMaca();
+        }
+
+        // Loop de Renderização e Atualização
+        function loopJogo(tempoAtual) {
+            requestAnimationFrame(loopJogo);
+
+            // Medidor de FPS
+            contFrames++;
+            if (tempoAtual - tUltimoFPS >= 1000) {
+                elFPS.innerText = "FPS: " + contFrames;
+                contFrames = 0;
+                tUltimoFPS = tempoAtual;
             }
-        };
 
-        // Carrega o ranking ao abrir a página
-        carregarRankingGlobal();
-    </script>
-</body>
-</html>"""
+            // Controla a velocidade do jogo (taxa de atualização da cobrinha)
+            const intervalo = 1000 / vel;
+            if (tempoAtual - tUltimoFrame < intervalo) return;
+            tUltimoFrame = tempoAtual;
 
-@app.route('/')
-def index():
-    return render_template_string(HTML_JOGO)
+            if (estado !== "JOGANDO" || emPausa) {
+                // Se estiver em login ou pausado, apenas limpa e desenha o fundo básico
+                if(estado === "LOGIN") {
+                    ctx.fillStyle = "#1e1e1e";
+                    ctx.fillRect(0, 0, LARGURA, ALTURA);
+                }
+                return;
+            }
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+            // Atualiza posição da cabeça
+            x += vx;
+            y += vy;
+
+            // Colisão com as paredes
+            if (x < 0 || x >= LARGURA || y < 0 || y >= ALTURA) {
+                morreu();
+                return;
+            }
+
+            // Colisão com o próprio corpo
+            for (let i = 0; i < corpo.length; i++) {
