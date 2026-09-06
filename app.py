@@ -1,9 +1,173 @@
 import os, sys
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, jsonify, request
+
 app = Flask(__name__)
-HTML_JOGO = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><title>Cobrinha Pro</title><style>*{box-sizing:border-box;touch-action:none;-webkit-tap-highlight-color:transparent;}body{margin:0;background:#1e1e1e;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;color:white;font-family:Arial;user-select:none;padding:10px;overflow:hidden;}#placar-externo{display:flex;justify-content:space-between;width:100%;max-width:600px;background:#2c3e50;border:4px solid #3498db;border-bottom:none;border-top-left-radius:10px;border-top-right-radius:10px;padding:10px 20px;font-size:18px;font-weight:bold;}#canvas-container{border:4px solid #3498db;border-bottom-left-radius:10px;border-bottom-right-radius:10px;background:#1e1e1e;max-width:100%;}canvas{display:block;max-width:100%;height:auto;}.controles-sistema{display:none;gap:10px;margin-top:10px;width:100%;max-width:360px;}.btn-sys{background:#555;color:white;border:none;padding:10px;font-size:14px;font-weight:bold;border-radius:6px;flex:1;}.dpad{display:none;flex-direction:column;align-items:center;margin-top:20px;width:100%;max-width:260px;}.dpad-row{display:flex;justify-content:space-between;width:100%;gap:60px;}.btn-dir{background:#3498db;color:white;border:none;width:65px;height:55px;font-size:22px;font-weight:bold;border-radius:10px;box-shadow:0 4px #2980b9;display:flex;align-items:center;justify-content:center;}.btn-dir:active{box-shadow:0 1px #2980b9;transform:translateY(3px);background:#2980b9;}@media(max-width:768px){.controles-sistema,.dpad{display:flex;}#placar-externo{max-width:100%;}}</style></head><body><div id="placar-externo"><span id="txtPontos">Pontos: 0</span><span id="txtFPS" style="color:#2ecc71;">FPS: --</span><span id="txtRecorde" style="color:#f1c40f;">Recorde: 0</span></div><div id="canvas-container"><canvas id="gameCanvas" width="600" height="400"></canvas></div><div class="controles-sistema"><button class="btn-sys" id="btnPausa">Pausar / Jogar</button><button class="btn-sys" id="btnReset" style="background:#e74c3c;">Resetar</button></div><div class="dpad"><button class="btn-dir" data-dir="C">▲</button><div class="dpad-row" style="margin:10px 0;"><button class="btn-dir" data-dir="E">◀</button><button class="btn-dir" data-dir="D">▶</button></div><button class="btn-dir" data-dir="B">▼</button></div><script>const canvas=document.getElementById("gameCanvas"),ctx=canvas.getContext("2d"),BLOCO=20,LARGURA=canvas.width,ALTURA=canvas.height;let estado="JOGANDO",pontos=0,recorde=0,vel=10,x,y,vx=0,vy=0,corpo=[],tam=1,cx,cy,direcaoAtual="PARADO",tUltimoFrame=0,contFrames=0,tUltimoFPS=0,cPendentes=[];const elPontos=document.getElementById("txtPontos"),elRecorde=document.getElementById("txtRecorde"),elFPS=document.getElementById("txtFPS");document.addEventListener('gesturestart',e=>e.preventDefault());document.addEventListener('touchstart',e=>{if(e.touches.length>1)e.preventDefault();},{passive:false});let uToque=0;document.addEventListener('touchend',e=>{const t=performance.now();if(t-uToque<=300)e.preventDefault();uToque=t;},{passive:false});function updP(){elPontos.innerText=`Pontos: ${pontos}`;elRecorde.innerText=`Recorde: ${recorde}`;}if(localStorage.getItem("recSnk")){recorde=parseInt(localStorage.getItem("recSnk"));updP();}function reset(){x=LARGURA/2;y=ALTURA/2;vx=vy=0;corpo=[[x,y]];tam=1;pontos=0;vel=10;direcaoAtual="PARADO";cPendentes=[];novaC();updP();}function novaC(){let inv;do{inv=false;cx=Math.floor(Math.random()*(LARGURA/BLOCO))*BLOCO;cy=Math.floor(Math.random()*(ALTURA/BLOCO))*BLOCO;for(let i=0;i<corpo.length;i++){if(corpo[i][0]===cx&&corpo[i][1]===cy){inv=true;break;}}}while(inv);}function altP(){if(estado!=="GAME_OVER")estado=(estado==="JOGANDO")?"PAUSADO":"JOGANDO";}document.getElementById("btnPausa").addEventListener("touchstart",e=>{e.preventDefault();altP();},{passive:false});document.getElementById("btnReset").addEventListener("touchstart",e=>{e.preventDefault();reset();estado="JOGANDO";},{passive:false});const regT=(d)=>{if(estado!=="JOGANDO")return;let ref=cPendentes.length>0?cPendentes[cPendentes.length-1]:direcaoAtual;if((d==="E"&&ref!=="D"&&ref!=="E")||(d==="D"&&ref!=="E"&&ref!=="D")||(d==="C"&&ref!=="B"&&ref!=="C")||(d==="B"&&ref!=="C"&&ref!=="B")){if(cPendentes.length<2)cPendentes.push(d);}};const gerenciarToques=e=>{e.preventDefault();Array.from(e.touches).forEach(touch=>{const el=document.elementFromPoint(touch.clientX,touch.clientY);if(el&&el.classList.contains('btn-dir')){regT(el.getAttribute('data-dir'));}});};document.querySelectorAll('.btn-dir').forEach(btn=>{btn.addEventListener('touchstart',gerenciarToques,{passive:false});btn.addEventListener('touchmove',gerenciarToques,{passive:false});});window.addEventListener("keydown",e=>{if(e.code==="Space"){e.preventDefault();if(estado==="GAME_OVER"){reset();estado="JOGANDO";}else{altP();}}if(estado==="JOGANDO"){if(e.key==="ArrowLeft")regT("E");if(e.key==="ArrowRight")regT("D");if(e.key==="ArrowUp")regT("C");if(e.key==="ArrowDown")regT("B");}});canvas.addEventListener("click",e=>{if(estado==="GAME_OVER"){reset();estado="JOGANDO";return;}const r=canvas.getBoundingClientRect(),mx=(e.clientX-r.left)*(LARGURA/r.width),my=(e.clientY-r.top)*(ALTURA/r.height);if(estado==="PAUSADO"&&mx>=200&&mx<=400){if(my>=140&&my<=180)estado="JOGANDO";if(my>=200&&my<=240)reset();if(my>=260&&my<=300)estado="GAME_OVER";}});function logica(){if(estado!=="JOGANDO")return;if(cPendentes.length>0)direcaoAtual=cPendentes.shift();if(direcaoAtual==="E"){vx=-BLOCO;vy=0;}else if(direcaoAtual==="D"){vx=BLOCO;vy=0;}else if(direcaoAtual==="C"){vx=0;vy=-BLOCO;}else if(direcaoAtual==="B"){vx=0;vy=BLOCO;}if(vx===0&&vy===0)return;x+=vx;y+=vy;if(x>=LARGURA)x=0;else if(x<0)x=LARGURA-BLOCO;if(y>=ALTURA)y=0;else if(y<0)y=ALTURA-BLOCO;for(let i=0;i<corpo.length;i++){if(corpo[i][0]===x&&corpo[i][1]===y){if(pontos>recorde){recorde=pontos;localStorage.setItem("recSnk",recorde);}estado="GAME_OVER";updP();return;}}corpo.push([x,y]);if(corpo.length>tam)corpo.shift();if(x===cx&&y===cy){novaC();tam++;pontos+=10;if(pontos%20===0)vel+=1;if(pontos>recorde){recorde=pontos;localStorage.setItem("recSnk",recorde);}updP();}}function btn(txt,x,y,w,h,c="#3498db"){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);ctx.fillStyle="#ffffff";ctx.font="bold 16px Arial";ctx.textAlign="center";ctx.fillText(txt,x+w/2,y+h/2+5);}function desenhar(){ctx.fillStyle="#1e1e1e";ctx.fillRect(0,0,LARGURA,ALTURA);ctx.font="16px Arial";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🍎",cx+BLOCO/2,cy+BLOCO/2);ctx.fillStyle="#2ecc71";corpo.forEach(b=>ctx.fillRect(b[0],b[1],BLOCO,BLOCO));if(estado==="PAUSADO"){ctx.fillStyle="rgba(0,0,0,0.75)";ctx.fillRect(0,0,LARGURA,ALTURA);ctx.fillStyle="#f1c40f";ctx.font="bold 36px Arial";ctx.textAlign="center";ctx.fillText("JOGO PAUSADO",LARGURA/2,90);btn("Retomar Jogo",200,140,200,40);btn("Começar do Zero",200,200,200,40);btn("Sair do Jogo",200,260,200,40,"#c0392b");}else if(estado==="GAME_OVER"){ctx.fillStyle="rgba(0,0,0,0.85)";ctx.fillRect(0,0,LARGURA,ALTURA);ctx.fillStyle="#e74c3c";ctx.font="bold 40px Arial";ctx.textAlign="center";ctx.fillText("FIM DE JOGO!",LARGURA/2,100);ctx.fillStyle="#ffffff";ctx.font="18px Arial";ctx.fillText(`Pontos Feitos: ${pontos}`,LARGURA/2,145);btn("Toque para Reiniciar",200,190,200,40,"#2ecc71");}}function loop(tAtual){requestAnimationFrame(loop);contFrames++;if(tAtual>tUltimoFPS+1000){elFPS.innerText=`FPS: ${Math.round((contFrames*1000)/(tAtual-tUltimoFPS))}`;tUltimoFPS=tAtual;contFrames=0;}const delta=tAtual-tUltimoFrame,intFrame=1000/vel;if(delta>=intFrame){tUltimoFrame=tAtual-(delta%intFrame);logica();desenhar();}}reset();requestAnimationFrame(loop);</script></body></html>"""
-@app.route('/')
-def index(): return render_template_string(HTML_JOGO)
-if __name__ == '__main__':
-    porta = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=porta)
+
+# Banco de dados simulado em memória no servidor (Persiste globalmente enquanto o app estiver rodando)
+# Estrutura: {"nome": pontuacao_maxima}
+banco_recordes_global = {
+    "Lucas": 150,
+    "SnakeMaster": 100,
+    "Player1": 50,
+    "Cobrinha": 30,
+    "iOS_User": 20
+}
+
+@app.route('/api/recordes', methods=['GET'])
+def obter_recordes():
+    # Ordena os recordes do maior para o menor e pega os 5 melhores
+    top_5 = sorted(banco_recordes_global.items(), key=lambda item: item[1], reverse=True)[:5]
+    return jsonify([{"nome": nome, "pontos": pontos} for nome, pontos in top_5])
+
+@app.route('/api/salvar', methods=['POST'])
+def salvar_recorde():
+    dados = request.json
+    nome = dados.get('nome', '').strip()
+    pontos = int(dados.get('pontos', 0))
+    
+    if not nome:
+        return jsonify({"status": "erro", "mensagem": "Nome inválido"}), 400
+        
+    # Só grava se for um nome novo ou se a pontuação atual for maior que o recorde antigo dele
+    if nome not in banco_recordes_global or pontos > banco_recordes_global[nome]:
+        banco_recordes_global[nome] = pontos
+        
+    return jsonify({"status": "sucesso"})
+
+HTML_JOGO = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Cobrinha Ultra Global</title>
+    <style>
+        * { box-sizing: border-box; touch-action: none; -webkit-tap-highlight-color: transparent; }
+        body { margin:0; background:#1e1e1e; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; color:white; font-family:Arial, sans-serif; user-select:none; padding:10px; }
+        #container-principal { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 600px; }
+        #placar-externo { display: flex; justify-content: space-between; width: 100%; background: #2c3e50; border: 4px solid #3498db; border-bottom: none; border-top-left-radius: 10px; border-top-right-radius: 10px; padding: 10px 20px; font-size: 16px; font-weight: bold; width: 100%; }
+        #canvas-container { border: 4px solid #3498db; background:#1e1e1e; width: 100%; position: relative; }
+        canvas { display:block; width: 100%; height:auto; background: #1e1e1e; }
+        
+        /* Painel do Ranking Global */
+        #painel-ranking { width: 100%; background: #2c3e50; border: 4px solid #3498db; border-top: none; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; padding: 10px 20px; font-size: 14px; }
+        #painel-ranking h3 { margin: 0 0 8px 0; text-align: center; color: #f1c40f; font-size: 16px; }
+        .linha-rank { display: flex; justify-content: space-between; margin-bottom: 4px; padding-bottom: 2px; border-bottom: 1px solid #34495e; }
+        
+        /* Tela de Bloqueio de Login Inicial */
+        #tela-login { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; padding: 20px; text-align: center; }
+        #tela-login h2 { color: #3498db; margin-bottom: 15px; }
+        #input-nome { padding: 12px; font-size: 16px; border: 2px solid #3498db; border-radius: 6px; width: 80%; max-width: 280px; margin-bottom: 15px; background: #fff; color: #000; text-align: center; font-weight: bold; }
+        #btn-jogar { background: #2ecc71; color: white; font-size: 18px; font-weight: bold; border: none; padding: 12px 30px; border-radius: 6px; cursor: pointer; box-shadow: 0 4px #27ae60; }
+        #btn-jogar:active { transform: translateY(2px); box-shadow: 0 2px #27ae60; }
+
+        .controles-sistema { display:none; gap:10px; margin-top:10px; width:100%; max-width:360px; }
+        .btn-sys { background:#555; color:white; border:none; padding:10px; font-size:14px; font-weight:bold; border-radius:6px; flex:1; }
+        .dpad { display:none; flex-direction:column; align-items:center; margin-top:15px; width:100%; max-width:260px; }
+        .dpad-row { display:flex; justify-content:space-between; width:100%; gap:60px; }
+        .btn-dir { background:#3498db; color:white; border:none; width:65px; height:55px; font-size:22px; font-weight:bold; border-radius:10px; box-shadow:0 4px #2980b9; display:flex; align-items:center; justify-content:center; }
+        .btn-dir:active { box-shadow:0 1px #2980b9; transform:translateY(3px); background:#2980b9; }
+        @media (max-width: 768px) { .controles-sistema, .dpad { display:flex; } }
+    </style>
+</head>
+<body>
+    <div id="container-principal">
+        <div id="placar-externo">
+            <span id="txtJogador">Jogador: --</span>
+            <span id="txtPontos">Pontos: 0</span>
+            <span id="txtFPS" style="color:#2ecc71;">FPS: --</span>
+        </div>
+        
+        <div id="canvas-container">
+            <!-- Tela de Login Obrigatória -->
+            <div id="tela-login">
+                <h2>COBRINHA GLOBAL</h2>
+                <input type="text" id="input-nome" placeholder="DIGITE SEU NOME" maxlength="12">
+                <button id="btn-jogar">ENTRAR E JOGAR</button>
+            </div>
+            <canvas id="gameCanvas" width="600" height="400"></canvas>
+        </div>
+        
+        <!-- Novo Label: Top 5 Líderes Mundiais -->
+        <div id="painel-ranking">
+            <h3>🏆 TOP 5 RECORDES GLOBAIS</h3>
+            <div id="lista-ranking">Carregando recordes mundiais...</div>
+        </div>
+
+        <div class="controles-sistema">
+            <button class="btn-sys" id="btnPausa">Pausar</button>
+            <button class="btn-sys" id="btnReset" style="background:#e74c3c;">Resetar</button>
+        </div>
+        <div class="dpad">
+            <button class="btn-dir" data-dir="C">▲</button>
+            <div class="dpad-row" style="margin:10px 0;"><button class="btn-dir" data-dir="E">◀</button><button class="btn-dir" data-dir="D">▶</button></div>
+            <button class="btn-dir" data-dir="B">▼</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas"), ctx = canvas.getContext("2d");
+        const BLOCO = 20, LARGURA = canvas.width, ALTURA = canvas.height;
+        let estado = "LOGIN", pontos = 0, vel = 10, x, y, vx = 0, vy = 0, corpo = [], tam = 1, cx, cy, direcaoAtual = "PARADO", tUltimoFrame = 0, contFrames = 0, tUltimoFPS = 0, cPendentes = [], nomeJogador = "";
+        const elPontos = document.getElementById("txtPontos"), elFPS = document.getElementById("txtFPS"), elJogador = document.getElementById("txtJogador"), elListaRanking = document.getElementById("lista-ranking");
+        
+        document.addEventListener('gesturestart', e => e.preventDefault());
+        document.addEventListener('touchstart', e => { if (estado !== "LOGIN" && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+        let uToque = 0; document.addEventListener('touchend', e => { const t = performance.now(); if (estado !== "LOGIN" && t - uToque <= 300) e.preventDefault(); uToque = t; }, { passive: false });
+
+        // Função para carregar os Top 5 Recordes do Servidor
+        async function carregarRankingGlobal() {
+            try {
+                const res = await fetch('/api/recordes');
+                const dados = await res.json();
+                elListaRanking.innerHTML = "";
+                dados.forEach((r, i) => {
+                    elListaRanking.innerHTML += `<div class="linha-rank"><span>${i+1}°. ${r.nome}</span><strong>${r.pontos} pts</strong></div>`;
+                });
+            } catch (err) {
+                elListaRanking.innerHTML = "Erro ao carregar ranking.";
+            }
+        }
+
+        // Envia a pontuação para o servidor quando morre
+        async function enviarPontuacaoServidor() {
+            if(!nomeJogador) return;
+            try {
+                await fetch('/api/salvar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nome: nomeJogador, pontos: pontos })
+                });
+                carregarRankingGlobal();
+            } catch (e) { console.error(e); }
+        }
+
+        // Evento do Botão de Entrar
+        document.getElementById("btn-jogar").addEventListener("click", () => {
+            const input = document.getElementById("input-nome");
+            nomeJogador = input.value.trim().toUpperCase();
+            if(!nomeJogador) { alert("Por favor, digite um nome válido!"); return; }
+            document.getElementById("tela-login").style.display = "none";
+            elJogador.innerText = `Player: ${nomeJogador}`;
+            estado = "JOGANDO";
+            reset();
+        });
+
+        function reset() { x = LARGURA/2; y = ALTURA/2; vx = vy = 0; corpo = [[x,y]]; tam = 1; pontos = 0; vel = 10; direcaoAtual = "PARADO"; cPendentes = []; novaC(); elPontos.innerText = `Pontos: ${pontos}`; }
+        
+        function novaC() {
+            let inv;
+            do {
+                inv = false;
+                cx = Math.floor(Math.random() * (LARGURA / BLOCO)) * BLOCO;
+                cy = Math.floor(Math.random() * (ALTURA / BLOCO)) * BLOCO;
+                for (let i = 0; i < corpo.length; i++) {
+                    if (corpo[i][0] === cx && corpo[i][1] === cy) { inv = true; break; }
+                }
+            } while (inv);
+        }
+        
+        function altP() { if (estado !== "GAME_OVER" && estado !== "LOGIN") estado = (estado === "JOGANDO") ? "PAUSADO" : "JOGANDO"; }
+
+        document.getElementById("btnPausa").addEventListener("touchstart", e => { e.preventDefault(); altP(); }, {passive: false});
