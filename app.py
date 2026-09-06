@@ -14,9 +14,7 @@ banco_recordes_global = {
 
 @app.route('/api/recordes', methods=['GET'])
 def obter_recordes():
-    # Converte o dicionário em uma lista estruturada de objetos
     ranking = [{"nome": k, "pontos": v} for k, v in banco_recordes_global.items()]
-    # Ordena do maior para o menor com base nos pontos e pega os 5 melhores
     top_5 = sorted(ranking, key=lambda x: x["pontos"], reverse=True)[:5]
     return jsonify(top_5)
 
@@ -36,7 +34,6 @@ def salvar_recorde():
 
 @app.route('/')
 def index():
-    # Renderiza o arquivo jogo.html que está dentro da pasta templates/
     return render_template('jogo.html')
 
 if __name__ == '__main__':
