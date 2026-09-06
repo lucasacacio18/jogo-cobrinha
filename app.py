@@ -49,7 +49,24 @@ HTML_JOGO = """<!DOCTYPE html>
         if(localStorage.getItem("recSnk")) { recorde = parseInt(localStorage.getItem("recSnk")); updP(); }
 
         function reset() { x = LARGURA/2; y = ALTURA/2; vx = vy = 0; corpo = [[x,y]]; tam = 1; pontos = 0; vel = 10; direcaoAtual = "PARADO"; cPendentes = []; novaC(); updP(); }
-        function novaC() { const ocupados = new Set(corpo.map(b => `${b},${b}`)); do { cx = Math.floor(Math.random() * (LARGURA / BLOCO)) * BLOCO; cy = Math.floor(Math.random() * (ALTURA / BLOCO)) * BLOCO; } while (ocupados.has(`${cx},${cy}`)); }
+        
+        // CORREÇÃO DEFINITIVA: Varre o corpo comparando eixos numéricos puros (X e Y) [1]
+        function novaC() {
+            let inv;
+            do {
+                inv = false;
+                cx = Math.floor(Math.random() * (LARGURA / BLOCO)) * BLOCO;
+                cy = Math.floor(Math.random() * (ALTURA / BLOCO)) * BLOCO;
+                
+                for (let i = 0; i < corpo.length; i++) {
+                    if (corpo[i][0] === cx && corpo[i][1] === cy) {
+                        inv = true;
+                        break;
+                    }
+                }
+            } while (inv);
+        }
+        
         function altP() { if (estado !== "GAME_OVER") estado = (estado === "JOGANDO") ? "PAUSADO" : "JOGANDO"; }
 
         document.getElementById("btnPausa").addEventListener("touchstart", e => { e.preventDefault(); altP(); }, {passive: false});
@@ -70,7 +87,8 @@ HTML_JOGO = """<!DOCTYPE html>
             x += vx; y += vy;
             if (x >= LARGURA) x = 0; else if (x < 0) x = LARGURA - BLOCO;
             if (y >= ALTURA) y = 0; else if (y < 0) y = ALTURA - BLOCO;
-            for (let i = 0; i < corpo.length; i++) { if (corpo[i] === x && corpo[i] === y) { if (pontos > recorde) { recorde = pontos; localStorage.setItem("recSnk", recorde); } estado = "GAME_OVER"; updP(); return; } }
+            
+            for (let i = 0; i < corpo.length; i++) { if (corpo[i][0] === x && corpo[i][1] === y) { if (pontos > recorde) { recorde = pontos; localStorage.setItem("recSnk", recorde); } estado = "GAME_OVER"; updP(); return; } }
             corpo.push([x, y]); if (corpo.length > tam) corpo.shift();
             if (x === cx && y === cy) { novaC(); tam++; pontos += 10; if (pontos % 20 === 0) vel += 1; if (pontos > recorde) { recorde = pontos; localStorage.setItem("recSnk", recorde); } updP(); }
         }
@@ -80,19 +98,11 @@ HTML_JOGO = """<!DOCTYPE html>
         function desenhar() {
             ctx.fillStyle = "#1e1e1e"; ctx.fillRect(0, 0, LARGURA, ALTURA);
             ctx.font = "16px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🍎", cx + BLOCO/2, cy + BLOCO/2);
-            ctx.fillStyle = "#2ecc71"; corpo.forEach(b => ctx.fillRect(b[0], b[1], BLOCO, BLOCO));
+            
+            ctx.fillStyle = "#2ecc71"; 
+            corpo.forEach(b => ctx.fillRect(b[0], b[1], BLOCO, BLOCO));
+            
             if (estado === "PAUSADO") { ctx.fillStyle = "rgba(0, 0, 0, 0.75)"; ctx.fillRect(0, 0, LARGURA, ALTURA); ctx.fillStyle = "#f1c40f"; ctx.font = "bold 36px Arial"; ctx.textAlign = "center"; ctx.fillText("JOGO PAUSADO", LARGURA/2, 90); btn("Retomar Jogo", 200, 140, 200, 40); btn("Começar do Zero", 200, 200, 200, 40); btn("Sair do Jogo", 200, 260, 200, 40,"#c0392b"); } 
             else if (estado === "GAME_OVER") { ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, LARGURA, ALTURA); ctx.fillStyle = "#e74c3c"; ctx.font = "bold 40px Arial"; ctx.textAlign = "center"; ctx.fillText("FIM DE JOGO!", LARGURA/2, 100); ctx.fillStyle = "#ffffff"; ctx.font = "18px Arial"; ctx.fillText(`Pontos Feitos: ${pontos}`, LARGURA/2, 145); btn("Toque para Reiniciar", 200, 190, 200, 40, "#2ecc71"); }
         }
 
-        function loop(tAtual) { requestAnimationFrame(loop); contFrames++; if (tAtual > tUltimoFPS + 1000) { elFPS.innerText = `FPS: ${Math.round((contFrames * 1000)/(tAtual-tUltimoFPS))}`; tUltimoFPS = tAtual; contFrames = 0; } const delta = tAtual - tUltimoFrame, intFrame = 1000 / vel; if (delta >= intFrame) { tUltimoFrame = tAtual - (delta % intFrame); logica(); desenhar(); } }
-        reset(); requestAnimationFrame(loop);
-    </script>
-</body>
-</html>"""
-
-@app.route('/')
-def index(): return render_template_string(HTML_JOGO)
-if __name__ == '__main__':
-    porta = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=porta)
